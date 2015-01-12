@@ -21,7 +21,7 @@ uint8_t mode_ = 0;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(ledPin, OUTPUT); 
+  pinMode(ledPin, OUTPUT);
   pinMode(sensorPin, INPUT);
   pinMode(button1Pin, INPUT_PULLUP);
   delay(3000); // sanity delay
@@ -37,7 +37,7 @@ void loop()
   if (mode_ < 2)
   {
     Fire2012(); // run simulation frame
-  
+
     FastLED.show(); // display this frame
     FastLED.delay(1000 / FRAMES_PER_SECOND);
   } else {
@@ -46,7 +46,7 @@ void loop()
 
   sensorValue = analogRead(sensorPin);
   //Serial.println(sensorValue);
- 
+
  //FIXME: MAKE IT AN INTERRUPT ROUTINE ASAP
   if (digitalRead(button1Pin) == LOW) {
     digitalWrite(ledPin, HIGH);
@@ -68,11 +68,15 @@ void loop()
 //~ HUE_BLUE = 160,
 //~ HUE_PURPLE = 192,
 //~ HUE_PINK = 224
+
+//#define HUE_DISTANCE HUE_RED - HUE_YELLOW
+#define HUE_DISTANCE 85/2
 uint8_t shifthue(int sv)
 {
     uint8_t hue_shift;
     hue_shift = sv / 4; //1024 / 4 == 256
-    hue_shift &= 0xE0; //do jumps in values of 32
+//    hue_shift &= 0xE0; //do jumps in values of 32
+    hue_shift &= 0xC0; //do jumps in values of 64
     return hue_shift;
 }
 
@@ -99,10 +103,10 @@ CHSV HSVHeatColor( uint8_t temperature, uint8_t hue_shift)
 
     } else if( t192 & 0x40 ) {
         // we're in the middle third
-        heatcolor.h = HUE_RED + (uint8_t) (((uint16_t)(HUE_RED - HUE_YELLOW)) * 252 /((uint16_t)heatramp));
+        heatcolor.h = HUE_RED + (uint8_t) (((uint16_t)(HUE_DISTANCE)) * 252 /((uint16_t)heatramp));
         heatcolor.v = 226 + (heatramp/2); // full light
         heatcolor.s = 252;
-        
+
     } else {
         // we're in the coolest third
         heatcolor.h = HUE_RED;
@@ -118,10 +122,10 @@ CHSV HSVHeatColor( uint8_t temperature, uint8_t hue_shift)
 
 // Fire2012 by Mark Kriegsman, July 2012
 // as part of "Five Elements" shown here: http://youtu.be/knWiGsmgycY
-//// 
+////
 // This basic one-dimensional 'fire' simulation works roughly as follows:
 // There's a underlying array of 'heat' cells, that model the temperature
-// at each point along the line.  Every cycle through the simulation, 
+// at each point along the line.  Every cycle through the simulation,
 // four steps are performed:
 //  1) All cells cool down a little bit, losing heat to the air
 //  2) The heat from each cell drifts 'up' and diffuses a little
@@ -132,7 +136,7 @@ CHSV HSVHeatColor( uint8_t temperature, uint8_t hue_shift)
 // Temperature is in arbitrary units from 0 (cold black) to 255 (white hot).
 //
 // This simulation scales it self a bit depending on NUM_LEDS; it should look
-// "OK" on anywhere from 20 to 100 LEDs without too much tweaking. 
+// "OK" on anywhere from 20 to 100 LEDs without too much tweaking.
 //
 // I recommend running this simulation at anywhere from 30-100 frames per second,
 // meaning an interframe delay of about 10-35 milliseconds.
@@ -146,7 +150,7 @@ CHSV HSVHeatColor( uint8_t temperature, uint8_t hue_shift)
 //
 // COOLING: How much does the air cool as it rises?
 // Less cooling = taller flames.  More cooling = shorter flames.
-// Default 50, suggested range 20-100 
+// Default 50, suggested range 20-100
 #define COOLING  55
 
 // SPARKING: What chance (out of 255) is there that a new spark will be lit?
@@ -169,12 +173,12 @@ void showAnalogValue()
                 else
                   leds[i % NUM_LEDS] = CRGB::Red;
 		// Show the leds
-		FastLED.show(); 
+		FastLED.show();
 		// Wait a little bit before we loop around and do it again
                 FastLED.delay(1000 / FRAMES_PER_SECOND * 2);
 	}
         FastLED.delay(5000);
-        for (int i = 0; i < NUM_LEDS; i++) { leds[i] = CRGB::Black; }        
+        for (int i = 0; i < NUM_LEDS; i++) { leds[i] = CRGB::Black; }
 }
 
 void fadeall() { for(int i = 0; i < NUM_LEDS; i++) { leds[i].nscale8(250); } }
@@ -188,12 +192,12 @@ void Fire2012()
     for( int i = 0; i < NUM_LEDS; i++) {
       heat[i] = qsub8( heat[i],  random8(0, ((COOLING * 10) / NUM_LEDS) + 2));
     }
-  
+
     // Step 2.  Heat from each cell drifts 'up' and diffuses a little
     for( int k= NUM_LEDS - 1; k >= 2; k--) {
       heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
     }
-    
+
     // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
     if( random8() < SPARKING ) {
       int y = random8(7);
@@ -203,11 +207,12 @@ void Fire2012()
     // Step 4.  Map from heat cells to LED colors
     for( int j = 0; j < NUM_LEDS; j++) {
         switch (mode_) {
-          case 0: 
+          case 0:
             leds[j] = HeatColor( heat[j] );
             break;
           case 1:
-            hsv2rgb_rainbow(HSVHeatColor( heat[j], shifthue(sensorValue)), leds[j]);
+//            hsv2rgb_rainbow(HSVHeatColor( heat[j], shifthue(sensorValue)), leds[j]);
+            hsv2rgb_spectrum(HSVHeatColor( heat[j], shifthue(sensorValue)), leds[j]);
             break;
         }
     }
