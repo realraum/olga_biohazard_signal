@@ -13,11 +13,26 @@ int const ledPin = 13;
 int const button1Pin = 0;
 int sensorValue = 0;
 uint8_t mode_ = 0;
+uint8_t button_is_pressed = 0;
 #define NUM_MODES 3;
 #define MQ3_MIN 100
 #define MQ3_MAX 980
 //#define MQ3_MIN 224
 //#define MQ3_MAX 980
+
+void intButtonPressed()
+{
+  button_is_pressed = millis();
+  digitalWrite(ledPin, HIGH);
+}
+
+void intButtonReleased()
+{
+  if (millis() - button_is_pressed > 100)
+    mode_ = (mode_ +1) % NUM_MODES;
+  button_is_pressed = 0;
+  digitalWrite(ledPin, LOW);
+}
 
 void setup() {
   Serial.begin(9600);
@@ -27,6 +42,8 @@ void setup() {
   delay(3000); // sanity delay
   FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.setBrightness( BRIGHTNESS );
+  attachInterrupt(button1Pin, intButtonPressed, RISING);
+  attachInterrupt(button1Pin, intButtonReleased, FALLING);
 }
 
 void loop()
@@ -47,16 +64,9 @@ void loop()
   sensorValue = analogRead(sensorPin);
   //Serial.println(sensorValue);
 
- //FIXME: MAKE IT AN INTERRUPT ROUTINE ASAP
-  if (digitalRead(button1Pin) == LOW) {
-    digitalWrite(ledPin, HIGH);
-    do {
+  while (button_is_pressed) {
       fadeall();
       FastLED.delay(1000 / FRAMES_PER_SECOND);
-    } while (digitalRead(button1Pin) == LOW);
-    //showAnalogValue();
-    digitalWrite(ledPin, LOW);
-    mode_ = (mode_ +1) % NUM_MODES;
   }
 }
 
