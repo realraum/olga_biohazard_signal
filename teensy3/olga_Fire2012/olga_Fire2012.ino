@@ -7,11 +7,14 @@
 #define BRIGHTNESS  220
 #define FRAMES_PER_SECOND 30
 
+const float tau = 2*3.14;
+
 CRGB leds[NUM_LEDS];
-int const sensorPin = A0;    // select the input pin for the potentiometer
+int const sensorPin = A0;
 int const ledPin = 13;
 int const button1Pin = 0;
 int sensorValue = 0;
+int sampled_sensorValue = 0;
 uint8_t mode_ = 0;
 uint8_t button_is_pressed = 0;
 #define NUM_MODES 3;
@@ -51,15 +54,21 @@ void loop()
   // Add entropy to random number generator; we use a lot of it.
   random16_add_entropy( sensorValue ^ random());
 
-  if (mode_ < 2)
-  {
-    Fire2012(); // run simulation frame
-
-    FastLED.show(); // display this frame
-    FastLED.delay(1000 / FRAMES_PER_SECOND);
-  } else {
-    showAnalogValue();
+  switch (mode_) {
+    case 0:
+      ColourSinCosWheel();
+    break;
+    case 1:
+      Fire2012(); // run simulation frame
+    break;
+    case 2:
+    default:
+      sampled_sensorValue = sensorValue;
+      showAnalogValue();
+    break;
   }
+  FastLED.show(); // display this frame
+  FastLED.delay(2000 / FRAMES_PER_SECOND);
 
   sensorValue = analogRead(sensorPin);
   //Serial.println(sensorValue);
@@ -80,7 +89,11 @@ void loop()
 //~ HUE_PINK = 224
 
 //#define HUE_DISTANCE HUE_RED - HUE_YELLOW
-#define HUE_DISTANCE 85/2
+//#define HUE_DISTANCE 85/2
+#define HUE_DISTANCE 0x40 // ==64
+
+// input value 0..1023
+// output 0,64,128,196
 uint8_t shifthue(int sv)
 {
     uint8_t hue_shift;
@@ -168,27 +181,31 @@ CHSV HSVHeatColor( uint8_t temperature, uint8_t hue_shift)
 // Default 120, suggested range 50-200.
 #define SPARKING 40
 
-
+int analogValueShowStep=-1;
 void showAnalogValue()
 {
-        for (int i = 0; i < NUM_LEDS; i++) { leds[i] = CRGB::Black; }
-        delay(100);
-	for (int i = 0; i < min(max(sensorValue - MQ3_MIN,0)* NUM_LEDS * 3 / (MQ3_MAX-MQ3_MIN),NUM_LEDS * 3); i++)
-        {
-		// Set the i'th led to red
-                if (i < NUM_LEDS)
-                  leds[i % NUM_LEDS] = CRGB::Blue;
-                else if (i > 2* NUM_LEDS)
-                  leds[i % NUM_LEDS] = CRGB::Green;
-                else
-                  leds[i % NUM_LEDS] = CRGB::Red;
-		// Show the leds
-		FastLED.show();
-		// Wait a little bit before we loop around and do it again
-                FastLED.delay(1000 / FRAMES_PER_SECOND * 2);
-	}
-        FastLED.delay(5000);
-        for (int i = 0; i < NUM_LEDS; i++) { leds[i] = CRGB::Black; }
+  if (analogValueShowStep< 0)
+  {
+    for (int i = 0; i < NUM_LEDS; i++) { leds[i] = CRGB::Black; }
+    analogValueShowStep=0;
+    return;
+  }
+
+  if (analogValueShowStep < min(max(sampled_sensorValue - MQ3_MIN,0)* NUM_LEDS * 3 / (MQ3_MAX-MQ3_MIN),NUM_LEDS * 3))
+  {
+    // Set the i'th led to red
+    if (analogValueShowStep < NUM_LEDS)
+      leds[analogValueShowStep % NUM_LEDS] = CRGB::Blue;
+    else if (analogValueShowStep > 2* NUM_LEDS)
+      leds[analogValueShowStep % NUM_LEDS] = CRGB::Green;
+    else
+      leds[analogValueShowStep % NUM_LEDS] = CRGB::Red;
+  } else if (analogValueShowStep > NUM_LEDS * 3) {
+    analogValueShowStep=-1;
+    return;
+  }
+
+  analogValueShowStep++;
 }
 
 void fadeall() { for(int i = 0; i < NUM_LEDS; i++) { leds[i].nscale8(250); } }
@@ -228,3 +245,36 @@ void Fire2012()
     }
 }
 
+byte steps = 0;
+byte rotation_saturation = 0;
+byte rotation_value = 0;
+byte rotation_hue = NUM_LEDS -1;
+void ColourSinCosWheel()
+{
+  CHSV hsvleds[NUM_LEDS];
+
+//  byte sh = sensorValue * 4 / 20;
+  byte sh = sensorValue * 4 / 19;
+
+  for (uint r=0; r<NUM_LEDS; r++)
+  {
+    //hsvleds[(r+rotation_saturation)%NUM_LEDS].s = 0xA0 + 0x4F * cos(tau * r / NUM_LEDS );
+    hsvleds[(r+rotation_value)%NUM_LEDS].v = 96 + (byte) (48.0 * sin(tau * r / NUM_LEDS));
+    hsvleds[(r+rotation_saturation)%NUM_LEDS].s = 0xfe;
+    //hsvleds[(r+rotation_value)%NUM_LEDS].v = 96;
+    //hsvleds[(r+rotation_hue)%NUM_LEDS].h = sh  + (byte)(50.0 * sin(2* tau * r / NUM_LEDS));
+    hsvleds[(r+rotation_hue)%NUM_LEDS].h = sh +20 + (byte)(20.0 * sin(2* tau * r / NUM_LEDS));
+  }
+
+  for (uint c=0; c<NUM_LEDS; c++) {
+    hsv2rgb_spectrum(hsvleds[c], leds[c]);
+  }
+  //rotation_saturation++;
+  steps++;
+  rotation_value++;
+  rotation_hue -= steps%2;
+  rotation_saturation%= NUM_LEDS;
+  rotation_value%= NUM_LEDS;
+  if (rotation_hue < 0)
+    rotation_hue = NUM_LEDS -1;
+}
