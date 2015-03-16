@@ -5,7 +5,7 @@
 #define CHIPSET     WS2812
 #define NUM_LEDS    16
 #define BRIGHTNESS  220
-#define FRAMES_PER_SECOND 30
+#define FRAMES_PER_SECOND 15
 
 const float tau = 2*3.14;
 
@@ -15,13 +15,22 @@ int const ledPin = 13;
 int const button1Pin = 0;
 int sensorValue = 0;
 int sampled_sensorValue = 0;
+int sensorValue_offset_corr_ = 0;
+float sensorValue_spreizfaktor_ = 1.0;
 uint8_t mode_ = 0;
 uint8_t button_is_pressed = 0;
-#define NUM_MODES 3;
+#define NUM_MODES 3
 #define MQ3_MIN 100
 #define MQ3_MAX 980
 //#define MQ3_MIN 224
 //#define MQ3_MAX 980
+
+// duration during with all samples are compressed into one minimum
+#define MIN_TIME_COMPRESS 30 * FRAMES_PER_SECOND
+#define NUM_MIN_SAMPLES 2*3
+uint16_t auto_offset_minimum_samples_[NUM_MIN_SAMPLES];
+uint8_t auto_offset_minimum_index_ = 0;
+uint16_t auto_offset_sample_counter_ = MIN_TIME_COMPRESS;
 
 void intButtonPressed()
 {
@@ -47,6 +56,8 @@ void setup() {
   FastLED.setBrightness( BRIGHTNESS );
   attachInterrupt(button1Pin, intButtonPressed, RISING);
   attachInterrupt(button1Pin, intButtonReleased, FALLING);
+  for (uint c=0; c<NUM_MIN_SAMPLES; c++)
+    auto_offset_minimum_samples_[c]=(uint16_t) -1;
 }
 
 void loop()
@@ -68,10 +79,27 @@ void loop()
     break;
   }
   FastLED.show(); // display this frame
-  FastLED.delay(2000 / FRAMES_PER_SECOND);
+  FastLED.delay(1000 / FRAMES_PER_SECOND);
 
   sensorValue = analogRead(sensorPin);
   //Serial.println(sensorValue);
+
+  auto_offset_minimum_samples_[auto_offset_minimum_index_] = min(sensorValue, auto_offset_minimum_samples_[auto_offset_minimum_index_]);
+  auto_offset_sample_counter_--;
+  if (auto_offset_sample_counter_== 0) {
+    auto_offset_sample_counter_ = MIN_TIME_COMPRESS;
+    auto_offset_minimum_index_++;
+    auto_offset_minimum_index_ %= NUM_MIN_SAMPLES;
+
+    uint16_t min_over_recent_time = auto_offset_minimum_samples_[0];
+    for (uint c=1; c<NUM_MIN_SAMPLES; c++)
+      min_over_recent_time = min(auto_offset_minimum_samples_[c],min_over_recent_time);
+    sensorValue_offset_corr_ = min_over_recent_time;
+    sensorValue_spreizfaktor_ = 1.0 + ((float) sensorValue_offset_corr_ / 1024.0);
+  }
+
+  sensorValue = (int) ((float)(sensorValue - sensorValue_offset_corr_) * sensorValue_spreizfaktor_);
+  sensorValue = max(sensorValue,0);
 
   while (button_is_pressed) {
       fadeall();
