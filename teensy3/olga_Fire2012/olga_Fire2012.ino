@@ -14,14 +14,12 @@ int const sensorPin = A0;
 int const ledPin = 13;
 int const button1Pin = 0;
 int sensorValue = 0;
-int sampled_sensorValue = 0;
 int sensorValue_offset_corr_ = 0;
 float sensorValue_spreizfaktor_ = 1.0;
 uint8_t mode_ = 0;
 uint8_t button_is_pressed = 0;
 #define NUM_MODES 3
-#define MQ3_MIN 100
-#define MQ3_MAX 980
+#define MQ3_MAX 1023
 //#define MQ3_MIN 224
 //#define MQ3_MAX 980
 
@@ -74,7 +72,6 @@ void loop()
     break;
     case 2:
     default:
-      sampled_sensorValue = sensorValue;
       showAnalogValue();
     break;
   }
@@ -219,7 +216,7 @@ void showAnalogValue()
     return;
   }
 
-  if (analogValueShowStep < min(max(sampled_sensorValue - MQ3_MIN,0)* NUM_LEDS * 3 / (MQ3_MAX-MQ3_MIN),NUM_LEDS * 3))
+  if (analogValueShowStep < min(sensorValue* NUM_LEDS * 3 / (MQ3_MAX - sensorValue_offset_corr_ ),NUM_LEDS * 3))
   {
     // Set the i'th led to red
     if (analogValueShowStep < NUM_LEDS)
