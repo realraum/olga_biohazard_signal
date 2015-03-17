@@ -1,0 +1,8 @@
+http://wiring.org.co/learning/basics/airqualitymq135.html
+5 lines to sensor and button
+3.3V --- Sensor VC / A1
+  5V --- Sensor VH / H1
+  A0 --- Sensor VRL / B1
+   0 --- Button
+ GND --- Button and Sensor GND
+
