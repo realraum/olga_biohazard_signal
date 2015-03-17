@@ -1,0 +1,13 @@
+Tinkercad: https://www.tinkercad.com/things/7LOPZpu29n3-alcsensorbox/edit
+
+sensor durchmesser: 16,5 mm
+sensor connector durchmesser: 16,7mm
+sensor höhe: 17,5mm
+knopf schraubdurchmesser: 7,2mm
+knopf höhe im gehäuse > 15,5mm
+kabel durchmesser: 1,4mm
+kabel: 6stück
+connector: 
+   höhe: 2,4mm
+   breite: 18mm
+   länge: 8mm ohne pins
