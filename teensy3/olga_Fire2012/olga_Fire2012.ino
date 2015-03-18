@@ -24,8 +24,8 @@ uint8_t button_is_pressed = 0;
 //#define MQ3_MAX 980
 
 // duration during with all samples are compressed into one minimum
-#define MIN_TIME_COMPRESS 30 * FRAMES_PER_SECOND
-#define NUM_MIN_SAMPLES 2*3
+#define MIN_TIME_COMPRESS 50 * FRAMES_PER_SECOND
+#define NUM_MIN_SAMPLES 2*4
 uint16_t auto_offset_minimum_samples_[NUM_MIN_SAMPLES];
 uint8_t auto_offset_minimum_index_ = 0;
 uint16_t auto_offset_sample_counter_ = MIN_TIME_COMPRESS;
@@ -54,7 +54,7 @@ void setup() {
   FastLED.setBrightness( BRIGHTNESS );
   attachInterrupt(button1Pin, intButtonPressed, RISING);
   attachInterrupt(button1Pin, intButtonReleased, FALLING);
-  for (uint c=0; c<NUM_MIN_SAMPLES; c++)
+  for (uint8_t c=0; c<NUM_MIN_SAMPLES; c++)
     auto_offset_minimum_samples_[c]=(uint16_t) -1;
 }
 
@@ -79,7 +79,7 @@ void loop()
   FastLED.delay(1000 / FRAMES_PER_SECOND);
 
   sensorValue = analogRead(sensorPin);
-  //Serial.println(sensorValue);
+  Serial.print(sensorValue);
 
   auto_offset_minimum_samples_[auto_offset_minimum_index_] = min(sensorValue, auto_offset_minimum_samples_[auto_offset_minimum_index_]);
   auto_offset_sample_counter_--;
@@ -89,7 +89,7 @@ void loop()
     auto_offset_minimum_index_ %= NUM_MIN_SAMPLES;
 
     uint16_t min_over_recent_time = auto_offset_minimum_samples_[0];
-    for (uint c=1; c<NUM_MIN_SAMPLES; c++)
+    for (uint8_t c=1; c<NUM_MIN_SAMPLES; c++)
       min_over_recent_time = min(auto_offset_minimum_samples_[c],min_over_recent_time);
     sensorValue_offset_corr_ = min_over_recent_time;
     sensorValue_spreizfaktor_ = 1.0 + ((float) sensorValue_offset_corr_ / 1024.0);
@@ -97,6 +97,9 @@ void loop()
 
   sensorValue = (int) ((float)(sensorValue - sensorValue_offset_corr_) * sensorValue_spreizfaktor_);
   sensorValue = max(sensorValue,0);
+
+  Serial.print(" - ");
+  Serial.println(sensorValue);
 
   while (button_is_pressed) {
       fadeall();
@@ -281,7 +284,7 @@ void ColourSinCosWheel()
 //  byte sh = sensorValue * 4 / 20;
   byte sh = sensorValue * 4 / 19;
 
-  for (uint r=0; r<NUM_LEDS; r++)
+  for (uint8_t r=0; r<NUM_LEDS; r++)
   {
     //hsvleds[(r+rotation_saturation)%NUM_LEDS].s = 0xA0 + 0x4F * cos(tau * r / NUM_LEDS );
     hsvleds[(r+rotation_value)%NUM_LEDS].v = 96 + (byte) (48.0 * sin(tau * r / NUM_LEDS));
@@ -291,7 +294,7 @@ void ColourSinCosWheel()
     hsvleds[(r+rotation_hue)%NUM_LEDS].h = sh +20 + (byte)(20.0 * sin(2* tau * r / NUM_LEDS));
   }
 
-  for (uint c=0; c<NUM_LEDS; c++) {
+  for (uint8_t c=0; c<NUM_LEDS; c++) {
     hsv2rgb_spectrum(hsvleds[c], leds[c]);
   }
   //rotation_saturation++;
