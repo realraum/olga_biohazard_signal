@@ -17,7 +17,8 @@ int sensorValue = 0;
 int sensorValue_offset_corr_ = 0;
 float sensorValue_spreizfaktor_ = 1.0;
 uint8_t mode_ = 0;
-uint8_t button_is_pressed = 0;
+uint8_t button_last_pressed_ = 0;
+uint8_t button_is_pressed_;
 #define NUM_MODES 3
 #define MQ3_MAX 1023
 //#define MQ3_MIN 224
@@ -32,16 +33,56 @@ uint16_t auto_offset_sample_counter_ = MIN_TIME_COMPRESS;
 
 void intButtonPressed()
 {
-  button_is_pressed = millis();
+  button_last_pressed_ = millis();
+  button_is_pressed_ = 1;
   digitalWrite(ledPin, HIGH);
 }
 
 void intButtonReleased()
 {
-  if (millis() - button_is_pressed > 100)
+  if (millis() - button_last_pressed_ > 120)
     mode_ = (mode_ +1) % NUM_MODES;
-  button_is_pressed = 0;
+  button_last_pressed_ = millis();
+  button_is_pressed_ = 0;
   digitalWrite(ledPin, LOW);
+}
+
+// use startup_early_hook() before Arduino Stuff disables the WDT forever
+#ifdef __cplusplus
+extern "C" {
+#endif
+void startup_early_hook() {
+WDOG_TOVALL = 1000; // The next 2 lines sets the time-out value. This is the value that the watchdog timer compa
+WDOG_TOVALH = 1;
+WDOG_PRESC = 4; // prescaler
+WDOG_STCTRLH = (WDOG_STCTRLH_ALLOWUPDATE | WDOG_STCTRLH_WDOGEN); // Enable WDG
+}
+#ifdef __cplusplus
+}
+#endif
+
+void enableWatchdogTeensy3(byte ctr_limit, byte prescaler) {
+  // the following code should be placed at the end of setup() since the watchdog starts right after this
+  noInterrupts();
+  WDOG_UNLOCK = WDOG_UNLOCK_SEQ1;
+  WDOG_UNLOCK = WDOG_UNLOCK_SEQ2;
+  delayMicroseconds(1); // Need to wait a bit..
+  WDOG_TOVALL = ctr_limit; // The next 2 lines sets the time-out value. This is the value that the watchdog timer compare itself to.
+  WDOG_TOVALH = 0;
+  WDOG_PRESC = prescaler; // This sets prescale clock so that the watchdog timer ticks at 1kHZ/prescaler instead of the default 1kHZ/4 = 200 HZ
+  WDOG_STCTRLH &= ~WDOG_STCTRLH_WDOGEN; // Enable WDG
+  interrupts()
+}
+
+void kickTheDogTeensy3() {
+  //make sure to wait 2-3 WDCLK before refresh wdog
+  while(WDOG_TMROUTL<2){}
+  noInterrupts();
+  WDOG_REFRESH = 0xA602;
+  WDOG_REFRESH = 0xB480;
+  interrupts()
+  //make sure the refresh passed to WDCLK clock domain, after that, counter value should be 0
+  while(WDOG_TMROUTL>=2){}
 }
 
 void setup() {
@@ -56,10 +97,13 @@ void setup() {
   attachInterrupt(button1Pin, intButtonReleased, FALLING);
   for (uint8_t c=0; c<NUM_MIN_SAMPLES; c++)
     auto_offset_minimum_samples_[c]=(uint16_t) -1;
+  enableWatchdogTeensy3(200, 4); //check every second
 }
 
 void loop()
 {
+  kickTheDogTeensy3();
+
   // Add entropy to random number generator; we use a lot of it.
   random16_add_entropy( sensorValue ^ random());
 
@@ -101,9 +145,10 @@ void loop()
   Serial.print(" - ");
   Serial.println(sensorValue);
 
-  while (button_is_pressed) {
+  while (button_is_pressed_ == 1) {
       fadeall();
       FastLED.delay(1000 / FRAMES_PER_SECOND);
+      kickTheDogTeensy3();
   }
 }
 
