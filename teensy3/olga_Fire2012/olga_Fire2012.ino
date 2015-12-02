@@ -18,7 +18,6 @@ int sensorValue_offset_corr_ = 0;
 float sensorValue_spreizfaktor_ = 1.0;
 uint8_t mode_ = 0;
 uint32_t button_last_pressed_ = 0;
-uint8_t button_is_pressed_;
 #define NUM_MODES 3
 #define MQ3_MAX 1023
 //#define MQ3_MIN 224
@@ -32,7 +31,6 @@ uint16_t auto_offset_sample_counter_ = MIN_TIME_COMPRESS;
 void intButtonPressed()
 {
   button_last_pressed_ = millis();
-  button_is_pressed_ = 1;
   digitalWrite(ledPin, HIGH);
 }
 
@@ -41,7 +39,6 @@ void intButtonReleased()
   if (millis() - button_last_pressed_ > 1000)
     mode_ = (mode_ +1) % NUM_MODES;
   button_last_pressed_ = millis();
-  button_is_pressed_ = 0;
   digitalWrite(ledPin, LOW);
 }
 
@@ -143,12 +140,6 @@ void loop()
   Serial.print(" - ");
   Serial.println(sensorValue);
 
-  while (button_is_pressed_ == 1) {
-      Serial.print("f");
-      kickTheDogTeensy3();
-      fadeall();
-      FastLED.delay(1000 / FRAMES_PER_SECOND);
-  }
 }
 
 //~ HUE_RED = 0,
