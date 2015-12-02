@@ -25,10 +25,8 @@ uint8_t button_is_pressed_;
 //#define MQ3_MAX 980
 
 // duration during with all samples are compressed into one minimum
-#define MIN_TIME_COMPRESS 50 * FRAMES_PER_SECOND
-#define NUM_MIN_SAMPLES 2*4
-uint16_t auto_offset_minimum_samples_[NUM_MIN_SAMPLES];
-uint8_t auto_offset_minimum_index_ = 0;
+#define MIN_TIME_COMPRESS 300 * FRAMES_PER_SECOND
+uint16_t auto_offset_minimum_ = (uint16_t) -1;
 uint16_t auto_offset_sample_counter_ = MIN_TIME_COMPRESS;
 
 void intButtonPressed()
@@ -90,13 +88,16 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   pinMode(sensorPin, INPUT);
   pinMode(button1Pin, INPUT_PULLUP);
-  delay(3000); // sanity delay
+  delay(500); // sanity delay
   FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.setBrightness( BRIGHTNESS );
+
+  //assume there is no alcohol after reset --> read value and set offset
+  sensorValue_offset_corr_ = analogRead(sensorPin);
+  sensorValue_spreizfaktor_ = 1.0 + ((float) sensorValue_offset_corr_ / 1024.0);
+
   attachInterrupt(button1Pin, intButtonPressed, RISING);
   attachInterrupt(button1Pin, intButtonReleased, FALLING);
-  for (uint8_t c=0; c<NUM_MIN_SAMPLES; c++)
-    auto_offset_minimum_samples_[c]=(uint16_t) -1;
   enableWatchdogTeensy3(200, 4); //check every second
 }
 
@@ -125,18 +126,14 @@ void loop()
   sensorValue = analogRead(sensorPin);
   Serial.print(sensorValue);
 
-  auto_offset_minimum_samples_[auto_offset_minimum_index_] = min(sensorValue, auto_offset_minimum_samples_[auto_offset_minimum_index_]);
+  // auto_offset_minimum_ containes the minimum over MIN_TIME_COMPRESS samples
+  auto_offset_minimum_ = min(sensorValue, auto_offset_minimum_);
   auto_offset_sample_counter_--;
   if (auto_offset_sample_counter_== 0) {
     auto_offset_sample_counter_ = MIN_TIME_COMPRESS;
-    auto_offset_minimum_index_++;
-    auto_offset_minimum_index_ %= NUM_MIN_SAMPLES;
-
-    uint16_t min_over_recent_time = auto_offset_minimum_samples_[0];
-    for (uint8_t c=1; c<NUM_MIN_SAMPLES; c++)
-      min_over_recent_time = min(auto_offset_minimum_samples_[c],min_over_recent_time);
-    sensorValue_offset_corr_ = min_over_recent_time;
+    sensorValue_offset_corr_ = auto_offset_minimum_;
     sensorValue_spreizfaktor_ = 1.0 + ((float) sensorValue_offset_corr_ / 1024.0);
+    auto_offset_minimum_ = (int16_t) -1;
   }
 
   sensorValue = (int) ((float)(sensorValue - sensorValue_offset_corr_) * sensorValue_spreizfaktor_);
