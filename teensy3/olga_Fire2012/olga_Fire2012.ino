@@ -17,7 +17,7 @@ int sensorValue = 0;
 int sensorValue_offset_corr_ = 0;
 float sensorValue_spreizfaktor_ = 1.0;
 uint8_t mode_ = 0;
-uint8_t button_last_pressed_ = 0;
+uint32_t button_last_pressed_ = 0;
 uint8_t button_is_pressed_;
 #define NUM_MODES 3
 #define MQ3_MAX 1023
@@ -38,7 +38,7 @@ void intButtonPressed()
 
 void intButtonReleased()
 {
-  if (millis() - button_last_pressed_ > 120)
+  if (millis() - button_last_pressed_ > 1000)
     mode_ = (mode_ +1) % NUM_MODES;
   button_last_pressed_ = millis();
   button_is_pressed_ = 0;
@@ -59,16 +59,16 @@ WDOG_STCTRLH = (WDOG_STCTRLH_ALLOWUPDATE | WDOG_STCTRLH_WDOGEN); // Enable WDG
 }
 #endif
 
-void enableWatchdogTeensy3(byte ctr_limit, byte prescaler) {
+void enableWatchdogTeensy3() {
   // the following code should be placed at the end of setup() since the watchdog starts right after this
   noInterrupts();
   WDOG_UNLOCK = WDOG_UNLOCK_SEQ1;
   WDOG_UNLOCK = WDOG_UNLOCK_SEQ2;
   delayMicroseconds(1); // Need to wait a bit..
-  WDOG_TOVALL = ctr_limit; // The next 2 lines sets the time-out value. This is the value that the watchdog timer compare itself to.
-  WDOG_TOVALH = 0;
-  WDOG_PRESC = prescaler; // This sets prescale clock so that the watchdog timer ticks at 1kHZ/prescaler instead of the default 1kHZ/4 = 200 HZ
-  WDOG_STCTRLH &= ~WDOG_STCTRLH_WDOGEN; // Enable WDG
+  WDOG_TOVALL = 200; // The next 2 lines sets the time-out value. This is the value that the watchdog timer compare itself to.
+  WDOG_TOVALH = 1;
+  WDOG_PRESC = 4; // This sets prescale clock so that the watchdog timer ticks at 1kHZ/prescaler instead of the default 1kHZ/4 = 200 HZ
+  WDOG_STCTRLH = (WDOG_STCTRLH_ALLOWUPDATE | WDOG_STCTRLH_WDOGEN); // Enable WDG
   interrupts()
 }
 
@@ -88,7 +88,8 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   pinMode(sensorPin, INPUT);
   pinMode(button1Pin, INPUT_PULLUP);
-  delay(500); // sanity delay
+  delay(1000); // sanity delay
+  Serial.print("start");
   FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.setBrightness( BRIGHTNESS );
 
@@ -98,7 +99,7 @@ void setup() {
 
   attachInterrupt(button1Pin, intButtonPressed, RISING);
   attachInterrupt(button1Pin, intButtonReleased, FALLING);
-  enableWatchdogTeensy3(200, 4); //check every second
+  enableWatchdogTeensy3(); //check every second
 }
 
 void loop()
@@ -143,9 +144,10 @@ void loop()
   Serial.println(sensorValue);
 
   while (button_is_pressed_ == 1) {
+      Serial.print("f");
+      kickTheDogTeensy3();
       fadeall();
       FastLED.delay(1000 / FRAMES_PER_SECOND);
-      kickTheDogTeensy3();
   }
 }
 
